@@ -1,0 +1,22 @@
+type Consulta {
+    id: ID!
+    pacienteId: ID!
+    medicoId: ID!
+    dataHora: String!
+    status: String!
+    atualizadoEm: String!
+}
+
+type Query {
+    "Todas as consultas (passadas e futuras) de um paciente. Médico/enfermeiro podem consultar qualquer paciente; um paciente só pode consultar a si mesmo."
+    consultasPorPaciente(pacienteId: ID!): [Consulta!]!
+
+    "Apenas as consultas futuras de um paciente. Mesma regra de acesso de consultasPorPaciente."
+    consultasFuturasPorPaciente(pacienteId: ID!): [Consulta!]!
+
+    "Todas as consultas do paciente autenticado. Restrito a usuários com papel PACIENTE."
+    minhasConsultas: [Consulta!]!
+
+    "Consultas futuras do paciente autenticado. Restrito a usuários com papel PACIENTE."
+    minhasConsultasFuturas: [Consulta!]!
+}
