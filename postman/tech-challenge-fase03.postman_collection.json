@@ -1,0 +1,505 @@
+{
+  "info": {
+    "name": "Tech Challenge Fase 03 - Sistema Hospitalar",
+    "description": "Login, agendamento de consultas (REST), notificações (REST) e histórico (GraphQL). Rode a pasta \"1. Autenticação\" primeiro (ou a collection inteira, na ordem) para popular os tokens usados pelas demais pastas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "schedulingUrl", "value": "http://localhost:8081" },
+    { "key": "notificationUrl", "value": "http://localhost:8082" },
+    { "key": "historyUrl", "value": "http://localhost:8083" },
+    { "key": "medicoToken", "value": "" },
+    { "key": "medicoId", "value": "" },
+    { "key": "enfermeiroToken", "value": "" },
+    { "key": "pacienteToken", "value": "" },
+    { "key": "pacienteId", "value": "" },
+    { "key": "outroPacienteToken", "value": "" },
+    { "key": "consultaId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Autenticação",
+      "item": [
+        {
+          "name": "Login - Médico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('medicoToken', body.token);",
+                  "const payload = JSON.parse(atob(body.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "pm.collectionVariables.set('medicoId', payload.sub);",
+                  "pm.test('login retornou token', () => pm.expect(body.token).to.be.a('string'));",
+                  "pm.test('papel é MEDICO', () => pm.expect(body.papel).to.eql('MEDICO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{schedulingUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"medica.ana\",\n  \"password\": \"Senha@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login - Enfermeiro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('enfermeiroToken', body.token);",
+                  "pm.test('login retornou token', () => pm.expect(body.token).to.be.a('string'));",
+                  "pm.test('papel é ENFERMEIRO', () => pm.expect(body.papel).to.eql('ENFERMEIRO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{schedulingUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"enfermeiro.bruno\",\n  \"password\": \"Senha@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login - Paciente (João)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('pacienteToken', body.token);",
+                  "const payload = JSON.parse(atob(body.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "pm.collectionVariables.set('pacienteId', payload.sub);",
+                  "pm.test('login retornou token', () => pm.expect(body.token).to.be.a('string'));",
+                  "pm.test('papel é PACIENTE', () => pm.expect(body.papel).to.eql('PACIENTE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{schedulingUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"paciente.joao\",\n  \"password\": \"Senha@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login - Outro Paciente (Maria)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('outroPacienteToken', body.token);",
+                  "pm.test('login retornou token', () => pm.expect(body.token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{schedulingUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"paciente.maria\",\n  \"password\": \"Senha@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[Erro] Login com senha errada -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{schedulingUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"medica.ana\",\n  \"password\": \"senha-errada\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Agendamento (scheduling-service)",
+      "item": [
+        {
+          "name": "Criar Consulta (enfermeiro)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('consultaId', body.id);",
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('status da consulta é AGENDADA', () => pm.expect(body.status).to.eql('AGENDADA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{enfermeiroToken}}" }
+            ],
+            "url": "{{schedulingUrl}}/consultas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pacienteId\": \"{{pacienteId}}\",\n  \"medicoId\": \"{{medicoId}}\",\n  \"dataHora\": \"2027-01-15T10:00:00\",\n  \"observacoes\": \"Consulta de rotina\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Editar Consulta (médico)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{medicoToken}}" }
+            ],
+            "url": "{{schedulingUrl}}/consultas/{{consultaId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataHora\": \"2027-01-15T11:00:00\",\n  \"status\": \"AGENDADA\",\n  \"observacoes\": \"Reagendada 1h mais tarde\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Buscar Consulta por Id (médico)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{medicoToken}}" }],
+            "url": "{{schedulingUrl}}/consultas/{{consultaId}}"
+          }
+        },
+        {
+          "name": "Listar Todas as Consultas (enfermeiro)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{enfermeiroToken}}" }],
+            "url": "{{schedulingUrl}}/consultas"
+          }
+        },
+        {
+          "name": "Listar Minhas Consultas (paciente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('todas as consultas são do próprio paciente', () => {",
+                  "  body.forEach(c => pm.expect(c.pacienteId).to.eql(pm.collectionVariables.get('pacienteId')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{pacienteToken}}" }],
+            "url": "{{schedulingUrl}}/consultas"
+          }
+        },
+        {
+          "name": "[Erro] Paciente tenta criar consulta -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pacienteToken}}" }
+            ],
+            "url": "{{schedulingUrl}}/consultas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pacienteId\": \"{{pacienteId}}\",\n  \"medicoId\": \"{{medicoId}}\",\n  \"dataHora\": \"2027-01-15T10:00:00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[Erro] Paciente busca consulta de outro paciente -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{outroPacienteToken}}" }],
+            "url": "{{schedulingUrl}}/consultas/{{consultaId}}"
+          }
+        },
+        {
+          "name": "[Erro] Sem token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 401', () => pm.response.to.have.status(401));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{schedulingUrl}}/consultas"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Notificações (notification-service)",
+      "item": [
+        {
+          "name": "Listar Notificações do Paciente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('há ao menos uma notificação (evento processado de forma assíncrona)', () => pm.expect(body.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{pacienteToken}}" }],
+            "url": "{{notificationUrl}}/notificacoes"
+          }
+        },
+        {
+          "name": "Listar Notificações por pacienteId (enfermeiro)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{enfermeiroToken}}" }],
+            "url": {
+              "raw": "{{notificationUrl}}/notificacoes?pacienteId={{pacienteId}}",
+              "host": ["{{notificationUrl}}"],
+              "path": ["notificacoes"],
+              "query": [{ "key": "pacienteId", "value": "{{pacienteId}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Histórico (GraphQL - history-service)",
+      "item": [
+        {
+          "name": "consultasPorPaciente (médico)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('sem erros GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('retornou ao menos uma consulta', () => pm.expect(body.data.consultasPorPaciente.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{medicoToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query($pacienteId: ID!) { consultasPorPaciente(pacienteId: $pacienteId) { id pacienteId medicoId status dataHora atualizadoEm } }\",\n  \"variables\": { \"pacienteId\": \"{{pacienteId}}\" }\n}"
+            }
+          }
+        },
+        {
+          "name": "consultasFuturasPorPaciente (enfermeiro)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{enfermeiroToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query($pacienteId: ID!) { consultasFuturasPorPaciente(pacienteId: $pacienteId) { id status dataHora } }\",\n  \"variables\": { \"pacienteId\": \"{{pacienteId}}\" }\n}"
+            }
+          }
+        },
+        {
+          "name": "minhasConsultas (paciente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('sem erros GraphQL', () => pm.expect(body.errors).to.be.undefined);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pacienteToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query { minhasConsultas { id status dataHora } }\"\n}"
+            }
+          }
+        },
+        {
+          "name": "minhasConsultasFuturas (paciente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{pacienteToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query { minhasConsultasFuturas { id status dataHora } }\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[Erro] minhasConsultas para médico -> FORBIDDEN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('erro GraphQL do tipo FORBIDDEN', () => pm.expect(body.errors[0].extensions.classification).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{medicoToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query { minhasConsultas { id } }\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[Erro] Paciente consulta histórico de outro paciente -> FORBIDDEN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('erro GraphQL do tipo FORBIDDEN', () => pm.expect(body.errors[0].extensions.classification).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{outroPacienteToken}}" }
+            ],
+            "url": "{{historyUrl}}/graphql",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query($pacienteId: ID!) { consultasPorPaciente(pacienteId: $pacienteId) { id } }\",\n  \"variables\": { \"pacienteId\": \"{{pacienteId}}\" }\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
