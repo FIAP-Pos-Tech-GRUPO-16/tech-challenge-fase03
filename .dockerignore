@@ -1,0 +1,9 @@
+.git
+.claude
+.idea
+docs
+postman
+target
+**/target
+*.md
+CLAUDE.md
