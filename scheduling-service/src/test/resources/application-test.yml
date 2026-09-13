@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:scheduling-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+  flyway:
+    enabled: false
+
+  rabbitmq:
+    dynamic: false
+    listener:
+      simple:
+        auto-startup: false
+
+security:
+  jwt:
+    secret: segredo-exclusivo-de-teste-com-mais-de-32-caracteres
+    expiration-minutes: 60
+
+logging:
+  level:
+    br.com.postech.hospital: WARN
+    org.hibernate.SQL: WARN
