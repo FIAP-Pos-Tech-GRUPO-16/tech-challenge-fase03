@@ -3,6 +3,8 @@ package br.com.postech.hospital.scheduling.consulta;
 import br.com.postech.hospital.events.StatusConsulta;
 import br.com.postech.hospital.scheduling.exception.ResourceNotFoundException;
 import br.com.postech.hospital.scheduling.messaging.ConsultaAlteradaEvent;
+import br.com.postech.hospital.scheduling.usuario.Usuario;
+import br.com.postech.hospital.scheduling.usuario.UsuarioRepository;
 import br.com.postech.hospital.security.AuthenticatedUser;
 import br.com.postech.hospital.security.SecurityRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,9 @@ class ConsultaServiceTest {
     private ConsultaRepository consultaRepository;
 
     @Mock
+    private UsuarioRepository usuarioRepository;
+
+    @Mock
     private ApplicationEventPublisher applicationEventPublisher;
 
     private ConsultaService consultaService;
@@ -43,7 +48,7 @@ class ConsultaServiceTest {
 
     @BeforeEach
     void setUp() {
-        consultaService = new ConsultaService(consultaRepository, applicationEventPublisher);
+        consultaService = new ConsultaService(consultaRepository, usuarioRepository, applicationEventPublisher);
     }
 
     private AuthenticatedUser medico() {
@@ -58,8 +63,17 @@ class ConsultaServiceTest {
         return new AuthenticatedUser(id, "paciente.joao", SecurityRole.PACIENTE);
     }
 
+    /** A criacao passou a exigir que paciente e medico existam com o papel correto. */
+    private void cadastrosValidos() {
+        when(usuarioRepository.findById(pacienteId)).thenReturn(Optional.of(
+                new Usuario(pacienteId, "Joao Pereira", "paciente.joao", "hash", SecurityRole.PACIENTE)));
+        when(usuarioRepository.findById(medicoId)).thenReturn(Optional.of(
+                new Usuario(medicoId, "Dra. Ana", "medica.ana", "hash", SecurityRole.MEDICO)));
+    }
+
     @Test
     void criarDeveSalvarConsultaEPublicarEventoDeCriacao() {
+        cadastrosValidos();
         ConsultaRequest request = new ConsultaRequest(pacienteId, medicoId, dataHora, "primeira consulta");
 
         ConsultaResponse response = consultaService.criar(request, enfermeiro());
@@ -80,7 +94,7 @@ class ConsultaServiceTest {
         when(consultaRepository.findById(consulta.getId())).thenReturn(Optional.of(consulta));
         ConsultaUpdateRequest request = new ConsultaUpdateRequest(dataHora.plusHours(1), StatusConsulta.REALIZADA, "atualizada");
 
-        ConsultaResponse response = consultaService.editar(consulta.getId(), request, medico());
+        ConsultaResponse response = consultaService.editar(consulta.getId(), request);
 
         assertThat(response.status()).isEqualTo(StatusConsulta.REALIZADA);
         assertThat(response.observacoes()).isEqualTo("atualizada");
@@ -96,7 +110,7 @@ class ConsultaServiceTest {
         when(consultaRepository.findById(idInexistente)).thenReturn(Optional.empty());
         ConsultaUpdateRequest request = new ConsultaUpdateRequest(dataHora, StatusConsulta.REALIZADA, null);
 
-        assertThatThrownBy(() -> consultaService.editar(idInexistente, request, medico()))
+        assertThatThrownBy(() -> consultaService.editar(idInexistente, request))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(applicationEventPublisher, never()).publishEvent(any());
     }
@@ -169,5 +183,44 @@ class ConsultaServiceTest {
 
         verify(consultaRepository).findAll();
         verify(consultaRepository, never()).findByPacienteId(any());
+    }
+
+    @Test
+    void criarDeveRecusarPacienteInexistente() {
+        when(usuarioRepository.findById(pacienteId)).thenReturn(Optional.empty());
+        ConsultaRequest request = new ConsultaRequest(pacienteId, medicoId, dataHora, null);
+
+        assertThatThrownBy(() -> consultaService.criar(request, enfermeiro()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pacienteId");
+        verify(consultaRepository, never()).save(any());
+        verify(applicationEventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void criarDeveRecusarMedicoInexistente() {
+        when(usuarioRepository.findById(pacienteId)).thenReturn(Optional.of(
+                new Usuario(pacienteId, "Joao Pereira", "paciente.joao", "hash", SecurityRole.PACIENTE)));
+        when(usuarioRepository.findById(medicoId)).thenReturn(Optional.empty());
+        ConsultaRequest request = new ConsultaRequest(pacienteId, medicoId, dataHora, null);
+
+        assertThatThrownBy(() -> consultaService.criar(request, enfermeiro()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("medicoId");
+        verify(consultaRepository, never()).save(any());
+    }
+
+    @Test
+    void criarDeveRecusarQuandoOMedicoInformadoNaVerdadeEhUmPaciente() {
+        when(usuarioRepository.findById(pacienteId)).thenReturn(Optional.of(
+                new Usuario(pacienteId, "Joao Pereira", "paciente.joao", "hash", SecurityRole.PACIENTE)));
+        when(usuarioRepository.findById(medicoId)).thenReturn(Optional.of(
+                new Usuario(medicoId, "Maria Santos", "paciente.maria", "hash", SecurityRole.PACIENTE)));
+        ConsultaRequest request = new ConsultaRequest(pacienteId, medicoId, dataHora, null);
+
+        assertThatThrownBy(() -> consultaService.criar(request, enfermeiro()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("medicoId");
+        verify(consultaRepository, never()).save(any());
     }
 }

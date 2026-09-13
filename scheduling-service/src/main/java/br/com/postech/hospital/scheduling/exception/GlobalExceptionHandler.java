@@ -2,6 +2,7 @@ package br.com.postech.hospital.scheduling.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -48,6 +49,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleArgumentoInvalido(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.de(400, "Requisição inválida", ex.getMessage()));
+    }
+
+    /**
+     * Rede de segurança: qualquer violação de restrição do banco (foreign key, unique, check)
+     * é erro do dado que veio na requisição, não falha do servidor — então responde 400, e não
+     * o 500 genérico do handler abaixo. A mensagem do banco não é repassada ao cliente, por não
+     * expor detalhes de schema.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleViolacaoDeIntegridade(DataIntegrityViolationException ex) {
+        log.warn("Requisição violou uma restrição de integridade: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.de(400, "Requisição inválida",
+                        "A operação viola uma restrição de integridade dos dados"));
     }
 
     @ExceptionHandler(Exception.class)

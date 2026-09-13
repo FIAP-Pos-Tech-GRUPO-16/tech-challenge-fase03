@@ -42,7 +42,7 @@ public class ConsultaController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Consulta criada"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos (ex.: data no passado)"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos (ex.: data no passado, ou pacienteId/medicoId inexistente)"),
             @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado"),
             @ApiResponse(responseCode = "403", description = "Usuário autenticado não é médico nem enfermeiro")
     })
@@ -67,7 +67,7 @@ public class ConsultaController {
     public ResponseEntity<ConsultaResponse> editar(
             @Parameter(description = "Id da consulta") @PathVariable UUID id,
             @Valid @RequestBody ConsultaUpdateRequest request) {
-        return ResponseEntity.ok(consultaService.editar(id, request, AuthenticatedUser.current()));
+        return ResponseEntity.ok(consultaService.editar(id, request));
     }
 
     @GetMapping("/{id}")

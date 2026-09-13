@@ -1,6 +1,8 @@
 package br.com.postech.hospital.scheduling.consulta;
 
 import br.com.postech.hospital.events.StatusConsulta;
+import br.com.postech.hospital.scheduling.usuario.Usuario;
+import br.com.postech.hospital.scheduling.usuario.UsuarioRepository;
 import br.com.postech.hospital.security.AuthenticatedUser;
 import br.com.postech.hospital.security.JwtProperties;
 import br.com.postech.hospital.security.JwtService;
@@ -19,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -41,6 +44,9 @@ class ConsultaSecurityIntegrationTest {
     @Autowired
     private ConsultaRepository consultaRepository;
 
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
     /**
      * Substitui a publicacao real no broker; a publicacao em si e coberta por ConsultaEventPublisherTest.
      */
@@ -53,8 +59,15 @@ class ConsultaSecurityIntegrationTest {
     private final UUID enfermeiroId = UUID.randomUUID();
 
     @BeforeEach
-    void limparBase() {
+    void prepararBase() {
         consultaRepository.deleteAll();
+        usuarioRepository.deleteAll();
+
+        // a criacao de consulta passou a exigir que paciente e medico existam com o papel correto
+        usuarioRepository.save(new Usuario(pacienteId, "Joao Pereira", "paciente.joao", "hash", SecurityRole.PACIENTE));
+        usuarioRepository.save(new Usuario(outroPacienteId, "Maria Santos", "paciente.maria", "hash", SecurityRole.PACIENTE));
+        usuarioRepository.save(new Usuario(medicoId, "Dra. Ana Souza", "medica.ana", "hash", SecurityRole.MEDICO));
+        usuarioRepository.save(new Usuario(enfermeiroId, "Enf. Bruno Lima", "enfermeiro.bruno", "hash", SecurityRole.ENFERMEIRO));
     }
 
     private String tokenDe(SecurityRole papel, UUID id) {
@@ -157,6 +170,35 @@ class ConsultaSecurityIntegrationTest {
     }
 
     @Test
+    @DisplayName("medicoId inexistente -> 400, e nao 500 (regressao: a FK estourava como erro do servidor)")
+    void medicoInexistenteDeveRetornar400() throws Exception {
+        String corpoComMedicoFantasma = """
+                {"pacienteId":"%s","medicoId":"%s","dataHora":"%s"}
+                """.formatted(pacienteId, UUID.randomUUID(), LocalDateTime.now().plusDays(3));
+
+        mockMvc.perform(post("/consultas")
+                        .header(AUTHORIZATION, tokenEnfermeiro())
+                        .contentType(APPLICATION_JSON)
+                        .content(corpoComMedicoFantasma))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("agendar com um paciente no lugar do medico -> 400")
+    void medicoQueNaVerdadeEhPacienteDeveRetornar400() throws Exception {
+        String corpoComPapelTrocado = """
+                {"pacienteId":"%s","medicoId":"%s","dataHora":"%s"}
+                """.formatted(pacienteId, outroPacienteId, LocalDateTime.now().plusDays(3));
+
+        mockMvc.perform(post("/consultas")
+                        .header(AUTHORIZATION, tokenEnfermeiro())
+                        .contentType(APPLICATION_JSON)
+                        .content(corpoComPapelTrocado))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("medico edita consulta -> 200 (requisito: medicos podem editar)")
     void medicoPodeEditarConsulta() throws Exception {
         Consulta consulta = consultaSalvaDe(pacienteId);
@@ -169,6 +211,28 @@ class ConsultaSecurityIntegrationTest {
                                 """.formatted(LocalDateTime.now().plusDays(8))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(StatusConsulta.REALIZADA.name()));
+    }
+
+    @Test
+    @DisplayName("a edicao e mesmo gravada no banco (relendo a linha, nao a resposta HTTP)")
+    void edicaoDevePersistirNoBanco() throws Exception {
+        Consulta consulta = consultaSalvaDe(pacienteId);
+        LocalDateTime novaDataHora = LocalDateTime.now().plusDays(30).withNano(0);
+
+        mockMvc.perform(put("/consultas/" + consulta.getId())
+                        .header(AUTHORIZATION, tokenMedico())
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"dataHora":"%s","status":"CANCELADA","observacoes":"paciente remarcou"}
+                                """.formatted(novaDataHora)))
+                .andExpect(status().isOk());
+
+        // relendo do repositorio: se o servico dependesse de um save() que nao existe,
+        // a resposta HTTP viria correta (montada do objeto em memoria) e a linha ficaria velha
+        Consulta doBanco = consultaRepository.findById(consulta.getId()).orElseThrow();
+        assertThat(doBanco.getStatus()).isEqualTo(StatusConsulta.CANCELADA);
+        assertThat(doBanco.getObservacoes()).isEqualTo("paciente remarcou");
+        assertThat(doBanco.getDataHora()).isEqualTo(novaDataHora);
     }
 
     @Test

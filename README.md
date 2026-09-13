@@ -147,6 +147,32 @@ novo.
 - A mesma regra vale para notificações e para o histórico em GraphQL: um paciente nunca enxerga
   dado de outro paciente.
 
+#### Do enunciado até o teste que garante a regra
+
+Cada linha de permissão do enunciado, onde ela vive no código e qual teste quebra se alguém
+remover a proteção:
+
+| Enunciado | Onde é garantido | Teste que protege |
+|---|---|---|
+| Médicos podem visualizar e editar o histórico de consultas | `@PreAuthorize("hasAnyRole('MEDICO','ENFERMEIRO')")` em `PUT /consultas/{id}` | `ConsultaSecurityIntegrationTest#medicoPodeEditarConsulta` |
+| Enfermeiros podem registrar consultas e acessar o histórico | `@PreAuthorize("hasAnyRole('MEDICO','ENFERMEIRO')")` em `POST /consultas` | `ConsultaSecurityIntegrationTest#enfermeiroPodeCriarConsulta` |
+| Pacientes podem visualizar apenas as suas consultas | `@PreAuthorize` nos endpoints de leitura **+** checagem de posse em `ConsultaService#garantirAcesso` | `#pacienteNaoPodeVerConsultaDeOutroPaciente` e `#listagemDoPacienteIgnoraFiltroEDevolveSomenteAsProprias` |
+| Paciente não registra nem edita consulta | ausência do papel `PACIENTE` no `@PreAuthorize` | `#pacienteNaoPodeCriarConsulta` e `#pacienteNaoPodeEditarConsulta` |
+| Histórico respeita a mesma posse do dado | `HistoricoService#garantirAcesso` | `HistoricoGraphQlSchemaTest#pacienteNaoPodeConsultarHistoricoDeOutroPaciente` |
+| Só quem tem token válido entra | `SecurityFilterChain` + `JwtAuthenticationFilter` | `#semTokenDeveRetornar401`, `#tokenDeOutroEmissorDeveRetornar401` |
+
+#### Uma decisão de interpretação, dita explicitamente
+
+O enunciado atribui o *editar* ao médico e o *registrar* ao enfermeiro. **Neste projeto, médico
+e enfermeiro podem fazer as duas coisas.**
+
+A escolha foi deliberada. O enunciado enumera o que cada perfil *pode* fazer, não declara
+exclusividade entre os dois; e num fluxo hospitalar real o reagendamento de uma consulta é
+rotina da enfermagem — restringir a edição ao médico criaria uma regra que nenhum hospital
+teria. A separação que o enunciado de fato exige, e que está implementada e testada, é entre
+**paciente e equipe clínica**: um paciente não cria, não edita, e não enxerga dado de ninguém
+além dele mesmo.
+
 ### O que acontece se uma mensagem "se perder" ou chegar duas vezes?
 
 Como o agendamento e os outros dois serviços se comunicam por recados assíncronos (e não por uma

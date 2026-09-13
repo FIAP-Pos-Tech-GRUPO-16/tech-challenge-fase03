@@ -6,6 +6,7 @@ import br.com.postech.hospital.security.AuthenticatedUser;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -21,22 +22,26 @@ public class HistoricoGraphQlController {
     }
 
     @QueryMapping
+    @PreAuthorize("hasAnyRole('MEDICO', 'ENFERMEIRO', 'PACIENTE')")
     public List<ConsultaHistoricoResponse> consultasPorPaciente(@Argument UUID pacienteId) {
         return historicoService.consultasDoPaciente(pacienteId, AuthenticatedUser.current());
     }
 
     @QueryMapping
+    @PreAuthorize("hasAnyRole('MEDICO', 'ENFERMEIRO', 'PACIENTE')")
     public List<ConsultaHistoricoResponse> consultasFuturasPorPaciente(@Argument UUID pacienteId) {
         return historicoService.consultasFuturasDoPaciente(pacienteId, AuthenticatedUser.current());
     }
 
     @QueryMapping
+    @PreAuthorize("hasRole('PACIENTE')")
     public List<ConsultaHistoricoResponse> minhasConsultas() {
         AuthenticatedUser autor = exigirPaciente();
         return historicoService.consultasDoPaciente(autor.id(), autor);
     }
 
     @QueryMapping
+    @PreAuthorize("hasRole('PACIENTE')")
     public List<ConsultaHistoricoResponse> minhasConsultasFuturas() {
         AuthenticatedUser autor = exigirPaciente();
         return historicoService.consultasFuturasDoPaciente(autor.id(), autor);

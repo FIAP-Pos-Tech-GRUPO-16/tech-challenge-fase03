@@ -64,7 +64,7 @@ class ConsultaControllerTest {
         ConsultaUpdateRequest request = new ConsultaUpdateRequest(LocalDateTime.now().plusDays(1), StatusConsulta.REALIZADA, null);
         ConsultaResponse resposta = new ConsultaResponse(id, UUID.randomUUID(), UUID.randomUUID(),
                 usuarioLogado.id(), request.dataHora(), request.status(), null, LocalDateTime.now(), LocalDateTime.now());
-        when(consultaService.editar(id, request, usuarioLogado)).thenReturn(resposta);
+        when(consultaService.editar(id, request)).thenReturn(resposta);
 
         ResponseEntity<ConsultaResponse> response = controller.editar(id, request);
 

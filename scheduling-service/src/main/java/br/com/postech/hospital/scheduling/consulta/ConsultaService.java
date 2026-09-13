@@ -3,7 +3,9 @@ package br.com.postech.hospital.scheduling.consulta;
 import br.com.postech.hospital.events.TipoEventoConsulta;
 import br.com.postech.hospital.scheduling.exception.ResourceNotFoundException;
 import br.com.postech.hospital.scheduling.messaging.ConsultaAlteradaEvent;
+import br.com.postech.hospital.scheduling.usuario.UsuarioRepository;
 import br.com.postech.hospital.security.AuthenticatedUser;
+import br.com.postech.hospital.security.SecurityRole;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -22,15 +24,22 @@ import java.util.UUID;
 public class ConsultaService {
 
     private final ConsultaRepository consultaRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    public ConsultaService(ConsultaRepository consultaRepository, ApplicationEventPublisher applicationEventPublisher) {
+    public ConsultaService(ConsultaRepository consultaRepository,
+                           UsuarioRepository usuarioRepository,
+                           ApplicationEventPublisher applicationEventPublisher) {
         this.consultaRepository = consultaRepository;
+        this.usuarioRepository = usuarioRepository;
         this.applicationEventPublisher = applicationEventPublisher;
     }
 
     @Transactional
     public ConsultaResponse criar(ConsultaRequest request, AuthenticatedUser autor) {
+        exigirUsuarioComPapel(request.pacienteId(), SecurityRole.PACIENTE, "pacienteId");
+        exigirUsuarioComPapel(request.medicoId(), SecurityRole.MEDICO, "medicoId");
+
         Consulta consulta = Consulta.agendar(request.pacienteId(), request.medicoId(), autor.id(),
                 request.dataHora(), request.observacoes());
         consultaRepository.save(consulta);
@@ -39,7 +48,7 @@ public class ConsultaService {
     }
 
     @Transactional
-    public ConsultaResponse editar(UUID id, ConsultaUpdateRequest request, AuthenticatedUser autor) {
+    public ConsultaResponse editar(UUID id, ConsultaUpdateRequest request) {
         Consulta consulta = buscarOuFalhar(id);
         consulta.atualizar(request.dataHora(), request.status(), request.observacoes());
         applicationEventPublisher.publishEvent(new ConsultaAlteradaEvent(consulta, TipoEventoConsulta.EDITADA));
@@ -73,5 +82,22 @@ public class ConsultaService {
         if (autor.isPaciente() && !consulta.pertenceAoPaciente(autor.id())) {
             throw new AccessDeniedException("Paciente só pode acessar as próprias consultas");
         }
+    }
+
+    /**
+     * Valida que o id informado existe e pertence a alguém com o papel esperado.
+     *
+     * <p>Sem isto, um id inexistente só era rejeitado lá embaixo, pela foreign key da tabela —
+     * o que chegava ao cliente como HTTP 500. E um id existente mas do papel errado (agendar
+     * uma consulta cujo "médico" é na verdade um paciente) passava sem nenhuma reclamação.
+     *
+     * <p>{@link IllegalArgumentException} já é traduzida para HTTP 400 pelo
+     * {@code GlobalExceptionHandler}.
+     */
+    private void exigirUsuarioComPapel(UUID id, SecurityRole papelEsperado, String campo) {
+        usuarioRepository.findById(id)
+                .filter(usuario -> usuario.getRole() == papelEsperado)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "%s não corresponde a um usuário com papel %s".formatted(campo, papelEsperado)));
     }
 }
