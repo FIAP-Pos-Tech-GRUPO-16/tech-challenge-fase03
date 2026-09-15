@@ -118,6 +118,11 @@ flowchart LR
 - Listagem dos lembretes enviados
 - Idempotência por identificador de evento, evitando lembretes duplicados
 
+O envio do lembrete é simulado: o serviço persiste o registro da notificação e escreve a
+entrega no log, sem integração real com e-mail ou SMS. O canal fica registrado como `EMAIL`.
+A integração com um provedor externo está fora do escopo do desafio e não altera o fluxo
+assíncrono, que é o ponto avaliado.
+
 ## Histórico (history-service)
 
 - Consumo assíncrono dos eventos de consulta
@@ -143,6 +148,15 @@ flowchart LR
 | Paciente | Visualizar apenas as próprias consultas, lembretes e histórico |
 
 Um paciente que informe o identificador de outro paciente em um filtro tem o parâmetro ignorado e recebe apenas os próprios dados. O acesso direto a um registro de terceiros retorna `403 Forbidden`.
+
+Médico e enfermeiro têm as mesmas permissões sobre a consulta porque o enunciado determina, no
+requisito do serviço de agendamento, que "médicos e enfermeiros poderão registrar novas consultas
+e modificar consultas existentes".
+
+O histórico não expõe operação de escrita. Ele é um modelo de leitura alimentado pelos eventos do
+agendamento: quando a consulta é editada, o evento `consulta.editada` atualiza o histórico
+automaticamente. É assim que a edição do histórico acontece, sem permitir escrita direta que faria
+o modelo de leitura divergir da fonte da verdade.
 
 ---
 
@@ -290,10 +304,21 @@ A API retorna respostas de erro padronizadas, contendo data e hora da ocorrênci
 
 | Código | Situação |
 |--------|----------|
-| 400 | Dados inválidos na requisição |
+| 400 | Dados inválidos, corpo malformado ou parâmetro com tipo incorreto |
 | 401 | Token ausente, inválido ou expirado |
 | 403 | Perfil sem permissão para a operação |
-| 404 | Recurso não encontrado |
+| 404 | Recurso ou rota inexistente |
+| 405 | Método HTTP não suportado pela rota |
+| 415 | `Content-Type` não suportado |
+| 500 | Falha inesperada, sem vazar detalhes internos |
+
+O agendamento e o serviço de notificações têm cada um o seu `GlobalExceptionHandler`. A duplicação
+é deliberada: são deployables independentes, e compartilhar o contrato de erro obrigaria a
+reconstruir os três serviços a cada ajuste de mensagem.
+
+Nos três serviços a rota `/error` é liberada na configuração de segurança. O despacho de erro do
+Spring roda com o contexto de segurança já limpo, e sem essa liberação qualquer erro de cliente
+seria devolvido como `401`, mascarando a causa real.
 
 No GraphQL, as violações de acesso são retornadas com a classificação `FORBIDDEN`.
 
@@ -401,7 +426,18 @@ A collection realiza o login automaticamente, armazena os tokens de cada perfil 
 
 # Testes
 
-O projeto possui 128 testes automatizados, distribuídos em testes unitários de regras de negócio, testes de integração com contexto Spring e banco em memória, testes de contrato da mensageria e validação do schema GraphQL.
+O projeto possui 169 testes automatizados, distribuídos em testes unitários de regras de negócio,
+testes de integração com contexto Spring e banco em memória, testes de contrato da mensageria,
+testes das regras de acesso ponta a ponta e validação do schema GraphQL.
+
+| Módulo | Testes |
+|---|---|
+| common-events | 4 |
+| common-security | 18 |
+| scheduling-service | 64 |
+| notification-service | 36 |
+| history-service | 47 |
+| **Total** | **169** |
 
 Executar todos os testes
 
@@ -426,6 +462,20 @@ O relatório de cada módulo é gerado em
 ```
 <módulo>/target/site/jacoco/index.html
 ```
+
+O build falha se a cobertura ficar abaixo de 70% de linhas ou 60% de branches em qualquer módulo.
+Cobertura atual
+
+| Módulo | Linhas | Branches |
+|---|---|---|
+| common-events | 100,0% | sem branches |
+| common-security | 98,4% | 94,4% |
+| scheduling-service | 97,9% | 92,9% |
+| history-service | 96,6% | 90,9% |
+| notification-service | 91,8% | 78,6% |
+
+As classes `*Application` e `RabbitTopology` ficam fora da medição: a primeira só tem o `main`, a
+segunda é um conjunto de constantes.
 
 ---
 

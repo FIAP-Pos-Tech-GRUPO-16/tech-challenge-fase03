@@ -43,6 +43,6 @@ public class UsuarioSeeder implements CommandLineRunner {
         );
 
         usuarioRepository.saveAll(usuariosDemonstracao);
-        log.info("Usuários de demonstração criados: {} (senha padrão: {})", usuariosDemonstracao.size(), SENHA_PADRAO);
+        log.info("Usuários de demonstração criados: {}", usuariosDemonstracao.size());
     }
 }
