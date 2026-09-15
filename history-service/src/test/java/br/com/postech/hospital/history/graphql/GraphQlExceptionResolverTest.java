@@ -33,4 +33,37 @@ class GraphQlExceptionResolverTest {
 
         assertThat(erro).isNull();
     }
+
+    @Test
+    void deveConverterArgumentoInvalidoParaBadRequest() {
+        DataFetchingEnvironment environment = mock(DataFetchingEnvironment.class, RETURNS_DEEP_STUBS);
+
+        GraphQLError erro = resolver.resolveToSingleError(
+                new IllegalArgumentException("pacienteId deve ser um UUID"), environment);
+
+        assertThat(erro).isNotNull();
+        assertThat(erro.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+    }
+
+    @Test
+    void deveEnxergarArgumentoInvalidoMesmoEnvolvidoEmOutrasExcecoes() {
+        DataFetchingEnvironment environment = mock(DataFetchingEnvironment.class, RETURNS_DEEP_STUBS);
+        Throwable encadeado = new RuntimeException("falha ao vincular argumento",
+                new IllegalStateException("conversao falhou",
+                        new IllegalArgumentException("Invalid UUID string: abc")));
+
+        GraphQLError erro = resolver.resolveToSingleError(encadeado, environment);
+
+        assertThat(erro).isNotNull();
+        assertThat(erro.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+    }
+
+    @Test
+    void naoDeveEntrarEmLacoComExcecaoQueApontaParaSiMesma() {
+        DataFetchingEnvironment environment = mock(DataFetchingEnvironment.class, RETURNS_DEEP_STUBS);
+
+        GraphQLError erro = resolver.resolveToSingleError(new RuntimeException("erro sem causa"), environment);
+
+        assertThat(erro).isNull();
+    }
 }

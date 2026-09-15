@@ -8,11 +8,19 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.HttpMethod;
+
+import java.util.UUID;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,5 +86,44 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody().message()).doesNotContain("stacktrace sensível");
+    }
+
+    @Test
+    void uuidMalformadoNoPathDeveRetornar400ENaoo500() {
+        MethodArgumentTypeMismatchException ex = mock(MethodArgumentTypeMismatchException.class);
+        doReturn("id").when(ex).getName();
+        doReturn(UUID.class).when(ex).getRequiredType();
+
+        ResponseEntity<ErrorResponse> response = handler.handleTipoInvalido(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).contains("id").contains("UUID");
+    }
+
+    @Test
+    void contentTypeNaoSuportadoDeveRetornar415() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleMediaTypeNaoSuportado(new HttpMediaTypeNotSupportedException("text/plain"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(response.getBody().status()).isEqualTo(415);
+    }
+
+    @Test
+    void metodoHttpNaoSuportadoDeveRetornar405() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleMetodoNaoSuportado(new HttpRequestMethodNotSupportedException("DELETE"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(response.getBody().message()).contains("DELETE");
+    }
+
+    @Test
+    void rotaInexistenteDeveRetornar404ENaoo500() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleRotaInexistente(new NoResourceFoundException(HttpMethod.GET, "/nao-existe"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody().status()).isEqualTo(404);
     }
 }

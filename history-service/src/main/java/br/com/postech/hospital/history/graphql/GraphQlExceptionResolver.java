@@ -20,6 +20,25 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
                     .message(ex.getMessage())
                     .build();
         }
+
+        if (causadoPorArgumentoInvalido(ex)) {
+            return GraphqlErrorBuilder.newError(environment)
+                    .errorType(ErrorType.BAD_REQUEST)
+                    .message("Argumento inválido na consulta")
+                    .build();
+        }
         return null;
+    }
+
+    private boolean causadoPorArgumentoInvalido(Throwable ex) {
+        for (Throwable atual = ex; atual != null; atual = atual.getCause()) {
+            if (atual instanceof IllegalArgumentException) {
+                return true;
+            }
+            if (atual.getCause() == atual) {
+                break;
+            }
+        }
+        return false;
     }
 }
