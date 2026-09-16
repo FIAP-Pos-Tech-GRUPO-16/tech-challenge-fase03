@@ -43,6 +43,15 @@ class AuthenticatedUserTest {
     }
 
     @Test
+    void currentDeveLancarExcecaoQuandoPrincipalNaoEhAuthenticatedUser() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("anonymousUser", null, List.of()));
+
+        assertThatThrownBy(AuthenticatedUser::current)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void construtorDeveRejeitarCamposObrigatoriosNulos() {
         assertThatThrownBy(() -> new AuthenticatedUser(null, "joao", SecurityRole.PACIENTE))
                 .isInstanceOf(NullPointerException.class);
