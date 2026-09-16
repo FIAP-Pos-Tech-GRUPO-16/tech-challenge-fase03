@@ -67,6 +67,11 @@ class JwtServiceTest {
     }
 
     @Test
+    void expiracaoDeveRefletirODuracaoConfiguradaEmJwtProperties() {
+        assertThat(jwtService.expiracao()).isEqualTo(java.time.Duration.ofMinutes(60));
+    }
+
+    @Test
     void devePreservarPapelDoUsuarioNoToken() {
         AuthenticatedUser paciente = new AuthenticatedUser(UUID.randomUUID(), "paciente.joao", SecurityRole.PACIENTE);
         String token = jwtService.gerarToken(paciente);
