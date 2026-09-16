@@ -38,6 +38,19 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("pacienteId malformado sem tipo esperado conhecido -> 400 com mensagem genérica")
+    void tipoInvalidoSemTipoEsperadoDeveUsarMensagemGenerica() {
+        MethodArgumentTypeMismatchException ex = mock(MethodArgumentTypeMismatchException.class);
+        doReturn("pacienteId").when(ex).getName();
+        doReturn(null).when(ex).getRequiredType();
+
+        ResponseEntity<ErrorResponse> response = handler.handleTipoInvalido(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).contains("deve ser um válido");
+    }
+
+    @Test
     @DisplayName("rota inexistente -> 404 (era 401)")
     void rotaInexistenteDeveRetornar404() {
         ResponseEntity<ErrorResponse> response =
