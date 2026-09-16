@@ -35,5 +35,14 @@ class UsuarioTest {
         assertThat(usuario).isEqualTo(usuario);
         assertThat(usuario).isNotEqualTo(Usuario.novo("n", "u2", "h", SecurityRole.PACIENTE));
         assertThat(usuario).isNotEqualTo(null);
+        assertThat(usuario).isNotEqualTo("outro tipo");
+    }
+
+    @Test
+    void doisUsuariosComIdsDiferentesNaoDevemTerOMesmoHashCode() {
+        Usuario a = Usuario.novo("n", "u1", "h", SecurityRole.PACIENTE);
+        Usuario b = Usuario.novo("n", "u2", "h", SecurityRole.PACIENTE);
+
+        assertThat(a.hashCode()).isNotEqualTo(b.hashCode());
     }
 }
