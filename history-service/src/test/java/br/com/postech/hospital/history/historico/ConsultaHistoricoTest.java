@@ -65,5 +65,24 @@ class ConsultaHistoricoTest {
 
         assertThat(historico).isEqualTo(historico);
         assertThat(historico).isNotEqualTo(null);
+        assertThat(historico).isNotEqualTo("não é um histórico");
+    }
+
+    @Test
+    void duasInstanciasDiferentesComMesmoConsultaIdDevemSerIguaisETerMesmoHashCode() {
+        ConsultaHistorico a = new ConsultaHistorico(consultaId, pacienteId, medicoId, dataHora, StatusConsulta.AGENDADA, ocorridoEm);
+        ConsultaHistorico b = new ConsultaHistorico(consultaId, UUID.randomUUID(), UUID.randomUUID(),
+                dataHora.plusDays(1), StatusConsulta.REALIZADA, ocorridoEm.plusMinutes(1));
+
+        assertThat(a).isEqualTo(b);
+        assertThat(a.hashCode()).isEqualTo(b.hashCode());
+    }
+
+    @Test
+    void duasInstanciasComConsultaIdDiferenteNaoDevemSerIguais() {
+        ConsultaHistorico a = new ConsultaHistorico(consultaId, pacienteId, medicoId, dataHora, StatusConsulta.AGENDADA, ocorridoEm);
+        ConsultaHistorico b = new ConsultaHistorico(UUID.randomUUID(), pacienteId, medicoId, dataHora, StatusConsulta.AGENDADA, ocorridoEm);
+
+        assertThat(a).isNotEqualTo(b);
     }
 }
