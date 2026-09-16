@@ -68,4 +68,45 @@ class ConsultaTest {
         assertThat(consulta).isNotEqualTo(null);
         assertThat(consulta).isNotEqualTo("outro tipo");
     }
+
+    @Test
+    void consultasComIdsDiferentesNaoDevemTerOMesmoHashCode() {
+        Consulta a = Consulta.agendar(pacienteId, medicoId, registradaPorId, dataHora, null);
+        Consulta b = Consulta.agendar(pacienteId, medicoId, registradaPorId, dataHora, null);
+
+        assertThat(a.hashCode()).isNotEqualTo(b.hashCode());
+    }
+
+    @Test
+    void aoPersistirDeveDefinirCriadoEmQuandoEntidadeAindaNaoTemData() {
+        // Simula a instância "vazia" que o Hibernate materializa via o construtor de pacote
+        // antes de popular os campos — cenário em que criadoEm ainda não foi definido.
+        Consulta consulta = new Consulta();
+
+        consulta.aoPersistir();
+
+        assertThat(consulta.getCriadoEm()).isNotNull();
+        assertThat(consulta.getAtualizadoEm()).isEqualTo(consulta.getCriadoEm());
+    }
+
+    @Test
+    void aoPersistirNaoDeveSobrescreverCriadoEmJaDefinido() {
+        Consulta consulta = Consulta.agendar(pacienteId, medicoId, registradaPorId, dataHora, null);
+        LocalDateTime criadoEmOriginal = consulta.getCriadoEm();
+
+        consulta.aoPersistir();
+
+        assertThat(consulta.getCriadoEm()).isEqualTo(criadoEmOriginal);
+    }
+
+    @Test
+    void aoAtualizarDeveRenovarAtualizadoEm() throws InterruptedException {
+        Consulta consulta = Consulta.agendar(pacienteId, medicoId, registradaPorId, dataHora, null);
+        LocalDateTime atualizadoEmOriginal = consulta.getAtualizadoEm();
+        Thread.sleep(1);
+
+        consulta.aoAtualizar();
+
+        assertThat(consulta.getAtualizadoEm()).isAfter(atualizadoEmOriginal);
+    }
 }
