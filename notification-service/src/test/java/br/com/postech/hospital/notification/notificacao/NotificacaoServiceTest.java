@@ -42,6 +42,11 @@ class NotificacaoServiceTest {
                 LocalDateTime.now().plusDays(1), StatusConsulta.AGENDADA);
     }
 
+    private ConsultaEvent eventoEditado() {
+        return ConsultaEvent.editada(UUID.randomUUID(), pacienteId, UUID.randomUUID(),
+                LocalDateTime.now().plusDays(2), StatusConsulta.AGENDADA);
+    }
+
     @Test
     void processarDeveSalvarNotificacaoQuandoEventoAindaNaoFoiProcessado() {
         ConsultaEvent evento = eventoCriado();
@@ -76,6 +81,18 @@ class NotificacaoServiceTest {
     }
 
     @Test
+    void processarDeveMontarMensagemDeAtualizacaoQuandoEventoEhDeEdicao() {
+        ConsultaEvent evento = eventoEditado();
+        when(notificacaoRepository.existsByEventoId(evento.eventoId())).thenReturn(false);
+
+        notificacaoService.processar(evento);
+
+        ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
+        verify(notificacaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getMensagem()).contains("atualizada");
+    }
+
+    @Test
     void listarDeveForcarFiltroPeloProprioIdQuandoAutorEhPaciente() {
         AuthenticatedUser paciente = new AuthenticatedUser(pacienteId, "paciente.joao", SecurityRole.PACIENTE);
         when(notificacaoRepository.findByPacienteId(pacienteId)).thenReturn(List.of());
@@ -95,5 +112,35 @@ class NotificacaoServiceTest {
 
         verify(notificacaoRepository).findAll();
         verify(notificacaoRepository, never()).findByPacienteId(any());
+    }
+
+    @Test
+    void listarDeveAplicarFiltroInformadoQuandoAutorEhMedicoOuEnfermeiro() {
+        AuthenticatedUser medico = new AuthenticatedUser(UUID.randomUUID(), "dr.ana", SecurityRole.MEDICO);
+        when(notificacaoRepository.findByPacienteId(pacienteId)).thenReturn(List.of());
+
+        notificacaoService.listar(pacienteId, medico);
+
+        verify(notificacaoRepository).findByPacienteId(pacienteId);
+        verify(notificacaoRepository, never()).findAll();
+    }
+
+    @Test
+    void listarDeveMapearNotificacoesEncontradasParaResponse() {
+        AuthenticatedUser paciente = new AuthenticatedUser(pacienteId, "paciente.joao", SecurityRole.PACIENTE);
+        Notificacao notificacao = Notificacao.paraLembreteDeConsulta(
+                UUID.randomUUID(), UUID.randomUUID(), pacienteId, "Sua consulta foi agendada.");
+        when(notificacaoRepository.findByPacienteId(pacienteId)).thenReturn(List.of(notificacao));
+
+        List<NotificacaoResponse> resultado = notificacaoService.listar(null, paciente);
+
+        assertThat(resultado).hasSize(1);
+        NotificacaoResponse response = resultado.get(0);
+        assertThat(response.id()).isEqualTo(notificacao.getId());
+        assertThat(response.consultaId()).isEqualTo(notificacao.getConsultaId());
+        assertThat(response.pacienteId()).isEqualTo(pacienteId);
+        assertThat(response.canal()).isEqualTo(notificacao.getCanal());
+        assertThat(response.mensagem()).isEqualTo(notificacao.getMensagem());
+        assertThat(response.enviadaEm()).isEqualTo(notificacao.getEnviadaEm());
     }
 }
