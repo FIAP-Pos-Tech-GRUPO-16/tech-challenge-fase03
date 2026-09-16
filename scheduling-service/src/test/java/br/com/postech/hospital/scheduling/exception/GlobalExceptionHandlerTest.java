@@ -1,6 +1,7 @@
 package br.com.postech.hospital.scheduling.exception;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -98,6 +99,30 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().message()).contains("id").contains("UUID");
+    }
+
+    @Test
+    void parametroSemTipoEsperadoConhecidoDeveUsarMensagemGenerica() {
+        MethodArgumentTypeMismatchException ex = mock(MethodArgumentTypeMismatchException.class);
+        doReturn("id").when(ex).getName();
+        doReturn(null).when(ex).getRequiredType();
+
+        ResponseEntity<ErrorResponse> response = handler.handleTipoInvalido(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).contains("deve ser um válido");
+    }
+
+    @Test
+    void violacaoDeIntegridadeDeveRetornar400SemVazarMensagemDoBanco() {
+        DataIntegrityViolationException ex = mock(DataIntegrityViolationException.class);
+        doReturn(new RuntimeException("duplicate key value violates unique constraint"))
+                .when(ex).getMostSpecificCause();
+
+        ResponseEntity<ErrorResponse> response = handler.handleViolacaoDeIntegridade(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).doesNotContain("constraint");
     }
 
     @Test
