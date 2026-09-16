@@ -41,5 +41,15 @@ class NotificacaoTest {
 
         assertThat(notificacao).isEqualTo(notificacao);
         assertThat(notificacao).isNotEqualTo(null);
+        assertThat(notificacao).isNotEqualTo("não é uma notificação");
+    }
+
+    @Test
+    void duasInstanciasComIdsDiferentesNaoDevemSerIguaisNemTerMesmoHashCode() {
+        Notificacao a = Notificacao.paraLembreteDeConsulta(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "m");
+        Notificacao b = Notificacao.paraLembreteDeConsulta(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "m");
+
+        assertThat(a).isNotEqualTo(b);
+        assertThat(a.hashCode()).isNotEqualTo(b.hashCode());
     }
 }
