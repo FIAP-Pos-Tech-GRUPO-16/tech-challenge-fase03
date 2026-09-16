@@ -62,7 +62,17 @@ class GraphQlExceptionResolverTest {
     void naoDeveEntrarEmLacoComExcecaoQueApontaParaSiMesma() {
         DataFetchingEnvironment environment = mock(DataFetchingEnvironment.class, RETURNS_DEEP_STUBS);
 
-        GraphQLError erro = resolver.resolveToSingleError(new RuntimeException("erro sem causa"), environment);
+        // O próprio Throwable nunca expõe getCause() apontando para si mesmo (a JDK traduz esse
+        // caso interno para null), então só uma subclasse que sobrescreve getCause() reproduz o
+        // ciclo que a guarda de causadoPorArgumentoInvalido precisa cortar.
+        Throwable causaCiclica = new RuntimeException("erro com causa ciclica") {
+            @Override
+            public synchronized Throwable getCause() {
+                return this;
+            }
+        };
+
+        GraphQLError erro = resolver.resolveToSingleError(causaCiclica, environment);
 
         assertThat(erro).isNull();
     }
